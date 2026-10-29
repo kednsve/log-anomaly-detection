@@ -15,32 +15,23 @@ public class AccessLog {
     private Long id;
 
     private String ip;
-
     private String ipLocation;
-
     private LocalDateTime accessTime;
-
     private String url;
-
     private Integer statusCode;
-
     private String method;
-
     private Integer responseTime;
-
     private String userAgent;
-
+    private Integer destPort;
+    private String protocol;
+    private Long duration;
+    private Long srcBytes;
+    private Long dstBytes;
     private Integer ruleAbnormal;
-
     private String ruleType;
-
     private Double modelScore;
-
     private Integer modelAbnormal;
-
     private Integer finalAbnormal;
-
     private Long uploadTaskId;
-
     private LocalDateTime createTime;
 }

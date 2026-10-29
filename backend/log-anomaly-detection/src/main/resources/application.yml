@@ -8,10 +8,13 @@ spring:
   # 数据源 MySQL
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/log_anomaly??useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    url: jdbc:mysql://localhost:3306/log_anomaly?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
     username: root
-    password: Sa123456
-
+    password: 123456
+  servlet:
+    multipart:
+      max-file-size: 100MB      # 单个文件最大 100MB
+      max-request-size: 100MB   # 整个请求最大 100MB
   #  # Redis 配置
   #  data:
   #    redis:

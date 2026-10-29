@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +20,9 @@ public class CsvUtil {
 
     private static final DateTimeFormatter[] TIME_FORMATS = {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")
+            DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'")
     };
 
     @Data
@@ -65,16 +68,25 @@ public class CsvUtil {
         if (isBlank(row.getUrl())) return "第" + lineNum + "行：URL为空";
 
         Integer status = parseInteger(row.getStatusCode());
-        if (status == null || status < 100 || status > 599) return "第" + lineNum + "行：状态码错误";
+        if (status != null && (status < 100 || status > 599)) {
+            return "第" + lineNum + "行：状态码错误";
+        }
 
         AccessLog log = new AccessLog();
         log.setIp(row.getIp().trim());
         log.setAccessTime(time);
         log.setUrl(truncate(row.getUrl(), 500));
-        log.setStatusCode(status);
+        log.setStatusCode(status != null ? status : 200); // 如果没有状态码默认给 200
         log.setMethod(isBlank(row.getMethod()) ? "GET" : row.getMethod().trim().toUpperCase());
         log.setResponseTime(parseInteger(row.getResponseTime()) == null ? 0 : parseInteger(row.getResponseTime()));
         log.setUserAgent(truncate(row.getUserAgent(), 500));
+
+        // ===== 新增：解析网络流特征（允许为空，防止老 CSV 报错） =====
+        log.setDestPort(parseInteger(row.getDestPort()));
+        log.setProtocol(truncate(row.getProtocol(), 20));
+        log.setDuration(parseLong(row.getDuration()));
+        log.setSrcBytes(parseLong(row.getSrcBytes()));
+        log.setDstBytes(parseLong(row.getDstBytes()));
 
         log.setRuleAbnormal(0);
         log.setModelAbnormal(0);
@@ -86,8 +98,16 @@ public class CsvUtil {
 
     private static LocalDateTime parseTime(String timeStr) {
         if (isBlank(timeStr)) return null;
+        String cleanTime = timeStr.trim().replace("'", "");
+
+        if (cleanTime.matches("^\\d+$")) {
+            try {
+                return LocalDateTime.ofEpochSecond(Long.parseLong(cleanTime) / 1000, 0, ZoneOffset.ofHours(8));
+            } catch (Exception ignored) {}
+        }
+
         for (DateTimeFormatter f : TIME_FORMATS) {
-            try { return LocalDateTime.parse(timeStr.trim(), f); } catch (Exception ignored) {}
+            try { return LocalDateTime.parse(cleanTime, f); } catch (Exception ignored) {}
         }
         return null;
     }
@@ -97,25 +117,28 @@ public class CsvUtil {
         try { return Integer.parseInt(str.trim()); } catch (Exception e) { return null; }
     }
 
+    private static Long parseLong(String str) {
+        if (isBlank(str)) return null;
+        try { return Long.parseLong(str.trim()); } catch (Exception e) { return null; }
+    }
+
     private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 
     private static String truncate(String s, int max) { return s != null && s.length() > max ? s.substring(0, max) : s; }
 
     @Data
     public static class CsvRow {
-        @ExcelProperty(index = 0)
-        private String ip;
-        @ExcelProperty(index = 1)
-        private String accessTime;
-        @ExcelProperty(index = 2)
-        private String url;
-        @ExcelProperty(index = 3)
-        private String statusCode;
-        @ExcelProperty(index = 4)
-        private String method;
-        @ExcelProperty(index = 5)
-        private String responseTime;
-        @ExcelProperty(index = 6)
-        private String userAgent;
+        @ExcelProperty(index = 0) private String ip;
+        @ExcelProperty(index = 1) private String accessTime;
+        @ExcelProperty(index = 2) private String url;
+        @ExcelProperty(index = 3) private String statusCode;
+        @ExcelProperty(index = 4) private String method;
+        @ExcelProperty(index = 5) private String responseTime;
+        @ExcelProperty(index = 6) private String userAgent;
+        @ExcelProperty(index = 7) private String destPort;
+        @ExcelProperty(index = 8) private String protocol;
+        @ExcelProperty(index = 9) private String duration;
+        @ExcelProperty(index = 10) private String srcBytes;
+        @ExcelProperty(index = 11) private String dstBytes;
     }
 }

@@ -11,11 +11,16 @@ import com.hzk.loganomaly.service.AccessLogService;
 import com.hzk.loganomaly.service.UploadTaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -31,32 +36,47 @@ public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadT
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void uploadCSV(MultipartFile file) {
+    @Async
+    public void asyncUploadCSV(File file, String fileName) {
         UploadTask uploadTask = new UploadTask();
-        uploadTask.setFileName(file.getOriginalFilename());
+        uploadTask.setFileName(fileName);
         uploadTask.setStatus(0);
         this.save(uploadTask);
 
-        try {
-            CsvUtil.ParseResult parseResult = CsvUtil.parse(file.getInputStream());
+        try (InputStream is = new FileInputStream(file)) {
+            CsvUtil.ParseResult parseResult = CsvUtil.parse(is);
             List<AccessLog> validLogs = parseResult.getValidLogs();
 
             if (!validLogs.isEmpty()) {
-                validLogs.forEach(accessLog -> accessLog.setUploadTaskId(uploadTask.getId()));
-                accessLogService.saveBatch(validLogs,500);
+                validLogs.forEach(log -> log.setUploadTaskId(uploadTask.getId()));
+                accessLogService.saveBatch(validLogs, 2000);
             }
 
             uploadTask.setStatus(1);
             uploadTask.setTotalRows(parseResult.getTotalRows());
             uploadTask.setSuccessRows(validLogs.size());
             uploadTask.setFailRows(parseResult.getErrors().size());
-            uploadTask.setFailDetail(JSON.toJSONString(parseResult.getErrors()));
 
-        } catch (IOException e) {
-            log.warn("csv导入失败：{}",e.getMessage());
+
+            List<String> errors = parseResult.getErrors();
+            String failDetailJson = JSON.toJSONString(errors);
+            if (failDetailJson.length() > 5000) {
+                failDetailJson = failDetailJson.substring(0, 5000) + "...(更多错误已省略)";
+            }
+            uploadTask.setFailDetail(failDetailJson);
+            this.updateById(uploadTask);
+
+            log.info("文件 {} 解析完成，成功入库 {} 条", fileName, validLogs.size());
+
+        } catch (Exception e) {
+            log.error("异步导入文件失败", e);
             uploadTask.setStatus(2);
             uploadTask.setFailDetail(e.getMessage());
-            throw new BusinessException("文件解析失败");
+            this.updateById(uploadTask);
+        } finally {
+            if (file.exists() && file.delete()) {
+                log.info("临时文件已清理：{}", file.getName());
+            }
         }
     }
 }
