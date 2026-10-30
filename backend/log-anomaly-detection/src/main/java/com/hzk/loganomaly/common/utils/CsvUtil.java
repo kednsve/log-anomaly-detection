@@ -50,7 +50,7 @@ public class CsvUtil {
             @Override
             public void doAfterAllAnalysed(AnalysisContext context) {
                 log.info("CSV解析完成，总行数：{}，成功：{}，失败：{}",
-                        result.getTotalRows(), result.getValidLogs().size(), result.getErrors().size());
+                         result.getTotalRows(), result.getValidLogs().size(), result.getErrors().size());
             }
         }).sheet().doRead();
 
@@ -74,23 +74,33 @@ public class CsvUtil {
 
         AccessLog log = new AccessLog();
         log.setIp(row.getIp().trim());
+
+        // ===== 新增：解析归属地 =====
+        log.setIpLocation(isBlank(row.getIpLocation()) ? "未知" : row.getIpLocation().trim());
+
         log.setAccessTime(time);
         log.setUrl(truncate(row.getUrl(), 500));
-        log.setStatusCode(status != null ? status : 200); // 如果没有状态码默认给 200
+        log.setStatusCode(status != null ? status : 200);
         log.setMethod(isBlank(row.getMethod()) ? "GET" : row.getMethod().trim().toUpperCase());
         log.setResponseTime(parseInteger(row.getResponseTime()) == null ? 0 : parseInteger(row.getResponseTime()));
         log.setUserAgent(truncate(row.getUserAgent(), 500));
 
-        // ===== 新增：解析网络流特征（允许为空，防止老 CSV 报错） =====
+        // ===== 解析网络流特征 =====
         log.setDestPort(parseInteger(row.getDestPort()));
         log.setProtocol(truncate(row.getProtocol(), 20));
         log.setDuration(parseLong(row.getDuration()));
         log.setSrcBytes(parseLong(row.getSrcBytes()));
         log.setDstBytes(parseLong(row.getDstBytes()));
 
+        // ===== 异常标记默认值 =====
         log.setRuleAbnormal(0);
         log.setModelAbnormal(0);
         log.setFinalAbnormal(0);
+
+        // 针对你实体类里的其他非空字段（防止 MyBatis 报错或默认为 null）
+        log.setModelScore(0.0);
+        log.setRuleType("正常");
+        log.setCreateTime(LocalDateTime.now());
 
         result.getValidLogs().add(log);
         return null;
@@ -129,16 +139,17 @@ public class CsvUtil {
     @Data
     public static class CsvRow {
         @ExcelProperty(index = 0) private String ip;
-        @ExcelProperty(index = 1) private String accessTime;
-        @ExcelProperty(index = 2) private String url;
-        @ExcelProperty(index = 3) private String statusCode;
-        @ExcelProperty(index = 4) private String method;
-        @ExcelProperty(index = 5) private String responseTime;
-        @ExcelProperty(index = 6) private String userAgent;
-        @ExcelProperty(index = 7) private String destPort;
-        @ExcelProperty(index = 8) private String protocol;
-        @ExcelProperty(index = 9) private String duration;
-        @ExcelProperty(index = 10) private String srcBytes;
-        @ExcelProperty(index = 11) private String dstBytes;
+        @ExcelProperty(index = 1) private String ipLocation;
+        @ExcelProperty(index = 2) private String accessTime;
+        @ExcelProperty(index = 3) private String url;
+        @ExcelProperty(index = 4) private String statusCode;
+        @ExcelProperty(index = 5) private String method;
+        @ExcelProperty(index = 6) private String responseTime;
+        @ExcelProperty(index = 7) private String userAgent;
+        @ExcelProperty(index = 8) private String destPort;
+        @ExcelProperty(index = 9) private String protocol;
+        @ExcelProperty(index = 10) private String duration;
+        @ExcelProperty(index = 11) private String srcBytes;
+        @ExcelProperty(index = 12) private String dstBytes;
     }
 }

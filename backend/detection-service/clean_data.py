@@ -1,5 +1,7 @@
 import pandas as pd
 import random
+import ip2region.util as util
+import ip2region.searcher as xdb
 
 # ================= 配置区 =================
 INPUT_PATH = 'F:/MyProjects/log-anomaly-detection/data/'
@@ -8,8 +10,30 @@ INPUT_FILE = INPUT_PATH + FILE_NAME
 OUTPUT_PATH = 'F:/MyProjects/log-anomaly-detection/data/cleaned/'
 OUTPUT_FILE = OUTPUT_PATH + 'data_set_dev.csv'
 SAMPLE_SIZE = 10000
-# ==========================================
 
+
+db_path= "./ipdb/ip2region_v4.xdb"
+v_index = util.load_vector_index_from_file(db_path)
+searcher = xdb.new_with_vector_index(util.IPv4, db_path, v_index)
+
+def get_ip_location(ip):
+    """查询 IP 归属地，返回 '中国 广东省 深圳市' 格式"""
+    try:
+        # 查询返回格式：国家|区域|省份|城市|ISP，例如：中国|0|广东省|深圳市|电信
+        result = searcher.search(ip)
+        if not result or '|' not in result:
+            return "未知"
+
+        parts = result.split('|')
+        country = parts[0] if parts[0] != '0' else ''
+        province = parts[2] if parts[2] != '0' else ''
+        city = parts[3] if parts[3] != '0' else ''
+
+        # 拼接并去重
+        location_parts = list(dict.fromkeys([p for p in [country, province, city] if p]))
+        return " ".join(location_parts) if location_parts else "未知"
+    except Exception:
+        return "未知"
 
 def gen_ip(prefix):
     """根据前缀补足到 4 段 IPv4，prefix 形如 '114.114.114.' 或 '45.12.'"""
@@ -69,6 +93,9 @@ def clean_cic_2018():
             method = 'POST'
             url = '/api/botnet/c2'
 
+        #ip属地解析
+        ip_location = get_ip_location(ip)
+
         # ====== 时间解析 ======
         raw_time = str(row.get('Timestamp', ''))
         try:
@@ -103,6 +130,7 @@ def clean_cic_2018():
         # ====== 组装数据 ======
         output_data.append({
             'ip': ip,
+            'ip_location': ip_location,
             'access_time': access_time,
             'url': url,
             'status_code': status_code,
@@ -121,14 +149,14 @@ def clean_cic_2018():
 
     # 确保列的顺序完全符合你的 CsvUtil 索引要求
     columns_order = [
-        'ip', 'access_time', 'url', 'status_code', 'method',
+        'ip', 'ip_location' ,'access_time', 'url', 'status_code', 'method',
         'response_time', 'user_agent', 'dest_port', 'protocol',
         'duration', 'src_bytes', 'dst_bytes'
     ]
     out_df = out_df[columns_order]
 
     out_df.to_csv(OUTPUT_FILE, index=False)
-    print(f"✅ 成功生成 {OUTPUT_FILE}，共 {len(out_df)} 条数据！")
+    print(f"成功生成 {OUTPUT_FILE}，共 {len(out_df)} 条数据！")
     print(f"提示：攻击 IP 池中包含真实 C2 ({ATTACKER_IP}) 和随机肉鸡 IP。")
 
 
