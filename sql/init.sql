@@ -24,7 +24,7 @@ CREATE TABLE `user` (
                         `nickname`    VARCHAR(50)  DEFAULT NULL COMMENT '昵称',
                         `role`        VARCHAR(20)  DEFAULT 'admin' COMMENT '角色',
                         `status`      TINYINT      DEFAULT 1 COMMENT '1启用,0禁用',
-                        `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+			`create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                         PRIMARY KEY (`id`),
                         UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户表';
@@ -91,6 +91,7 @@ CREATE TABLE `access_log` (
 -- =============================================
 CREATE TABLE `alert` (
                          `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+			 `task_id` BIGINT COMMENT '关联的上传任务ID',
                          `ip`            VARCHAR(45)  NOT NULL COMMENT '异常IP',
                          `alert_type`    VARCHAR(50)  NOT NULL COMMENT '告警类型',
                          `alert_source`  VARCHAR(20)  NOT NULL COMMENT '来源:rule/model/both',
@@ -99,11 +100,11 @@ CREATE TABLE `alert` (
                          `status`        TINYINT      DEFAULT 0 COMMENT '0未处理,1已处理,2误报',
                          `handle_time`   DATETIME     DEFAULT NULL COMMENT '处理时间',
                          `handle_remark` VARCHAR(255) DEFAULT NULL COMMENT '处理备注',
-                         `create_time`   DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                          PRIMARY KEY (`id`),
                          KEY `idx_ip` (`ip`),
                          KEY `idx_status` (`status`),
-                         KEY `idx_time` (`trigger_time`)
+                         KEY `idx_time` (`trigger_time`),
+			 KEY `idx_task` (`task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='异常告警表';
 
 -- =============================================

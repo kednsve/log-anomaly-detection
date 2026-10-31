@@ -28,7 +28,7 @@ public class AccessLog {
     private String ipLocation;
 
     /**
-     * 访问时间（日志发生时间）
+     * 访问时间
      */
     private LocalDateTime accessTime;
 

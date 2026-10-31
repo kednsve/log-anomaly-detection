@@ -1,5 +1,23 @@
 drop table if exists `access_log`;
 drop table  if exists `upload_task`;
+drop table if exists `alert`;
+CREATE TABLE `alert` (
+                         `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+			 `task_id` BIGINT COMMENT '关联的上传任务ID',
+                         `ip`            VARCHAR(45)  NOT NULL COMMENT '异常IP',
+                         `alert_type`    VARCHAR(50)  NOT NULL COMMENT '告警类型',
+                         `alert_source`  VARCHAR(20)  NOT NULL COMMENT '来源:rule/model/both',
+                         `description`   VARCHAR(500) DEFAULT NULL COMMENT '告警描述',
+                         `trigger_time`  DATETIME     NOT NULL COMMENT '触发时间',
+                         `status`        TINYINT      DEFAULT 0 COMMENT '0未处理,1已处理,2误报',
+                         `handle_time`   DATETIME     DEFAULT NULL COMMENT '处理时间',
+                         `handle_remark` VARCHAR(255) DEFAULT NULL COMMENT '处理备注',
+                         PRIMARY KEY (`id`),
+                         KEY `idx_ip` (`ip`),
+                         KEY `idx_status` (`status`),
+                         KEY `idx_time` (`trigger_time`),
+			 KEY `idx_task` (`task_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='异常告警表';
 CREATE TABLE `upload_task` (
                                `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
                                `file_name` varchar(255) COLLATE utf8mb4_general_ci NOT NULL COMMENT '文件名',

@@ -46,4 +46,5 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
                         )
         );
     }
+
 }
