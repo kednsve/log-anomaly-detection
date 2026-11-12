@@ -7,5 +7,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 
 public interface UploadTaskService extends IService<UploadTask> {
-    void asyncUploadCSV(File file, String fileName);
+    UploadTask createTask(String fileName);
+    void asyncUploadCSV(Long taskId,File file);
 }

@@ -12,11 +12,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -25,27 +25,38 @@ import java.util.List;
 public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadTask> implements UploadTaskService {
     private final AccessLogService accessLogService;
 
-    /**
-     * 上传文件
-     *
-     * @param file 上传的csv文件, spring 的 MultipartFile
-     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    @Async
-    public void asyncUploadCSV(File file, String fileName) {
+    public UploadTask createTask(String fileName) {
         UploadTask uploadTask = new UploadTask();
         uploadTask.setFileName(fileName);
         uploadTask.setStatus(0);
         this.save(uploadTask);
+        return uploadTask;
+    }
 
-        try (InputStream is = new FileInputStream(file)) {
-            CsvUtil.ParseResult parseResult = CsvUtil.parse(is);
+    /**
+     *
+     * @param taskId 任务id
+     * @param file   上传的文件
+     */
+    @Override
+    @Async
+    public void asyncUploadCSV(Long taskId, File file) {
+        UploadTask uploadTask = null;
+        try {
+            uploadTask = this.getById(taskId);
+            if (uploadTask == null) {
+                log.error("上传任务不存在：{}", taskId);
+                return;
+            }
+            CsvUtil.ParseResult parseResult;
+            try (InputStream is = new FileInputStream(file)) {
+                parseResult = CsvUtil.parse(is);
+            }
             List<AccessLog> validLogs = parseResult.getValidLogs();
 
             if (!validLogs.isEmpty()) {
-                validLogs.forEach(log -> log.setUploadTaskId(uploadTask.getId()));
-                accessLogService.saveBatch(validLogs, 2000);
+                accessLogService.saveLogs(validLogs, uploadTask.getId());
             }
 
             uploadTask.setStatus(1);
@@ -53,22 +64,25 @@ public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadT
             uploadTask.setSuccessRows(validLogs.size());
             uploadTask.setFailRows(parseResult.getErrors().size());
 
-
             List<String> errors = parseResult.getErrors();
             String failDetailJson = JSON.toJSONString(errors);
             if (failDetailJson.length() > 5000) {
                 failDetailJson = failDetailJson.substring(0, 5000) + "...(更多错误已省略)";
             }
             uploadTask.setFailDetail(failDetailJson);
+            uploadTask.setFinishTime(LocalDateTime.now());
             this.updateById(uploadTask);
 
-            log.info("文件 {} 解析完成，成功入库 {} 条", fileName, validLogs.size());
+            log.info("文件 {} 解析完成，成功入库 {} 条", uploadTask.getFileName(), validLogs.size());
 
         } catch (Exception e) {
-            log.error("异步导入文件失败", e);
-            uploadTask.setStatus(2);
-            uploadTask.setFailDetail(e.getMessage());
-            this.updateById(uploadTask);
+            log.error("异步导入文件失败：{}", e.getMessage(), e);
+            if (uploadTask != null) {
+                uploadTask.setStatus(2);
+                uploadTask.setFailDetail(e.getMessage());
+                uploadTask.setFinishTime(LocalDateTime.now());
+                this.updateById(uploadTask);
+            }
         } finally {
             if (file.exists() && file.delete()) {
                 log.info("临时文件已清理：{}", file.getName());

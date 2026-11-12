@@ -9,6 +9,9 @@ import com.hzk.loganomaly.entity.AccessLog;
 import com.hzk.loganomaly.mapper.AccessLogMapper;
 import com.hzk.loganomaly.service.AccessLogService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog> implements AccessLogService {
@@ -45,6 +48,16 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
                                 accessLogDTO.getEndTime()
                         )
         );
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveLogs(List<AccessLog> logs, Long taskId) {
+        if (logs == null || logs.isEmpty()) {
+            return;
+        }
+        logs.forEach(log -> log.setUploadTaskId(taskId));
+        this.saveBatch(logs, 2000);
     }
 
 }
