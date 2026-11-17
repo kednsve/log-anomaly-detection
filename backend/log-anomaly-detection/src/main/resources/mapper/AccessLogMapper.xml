@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hzk.loganomaly.mapper.AccessLogMapper">
+    <select id="selectIpFeatures" resultType="com.hzk.loganomaly.rule.IpFeature">
+        select a.ip,
+               a.total_requests,
+               a.last_access_time,
+               a.count404,
+               a.auth_failure_count,
+               coalesce(c.peak_per_minute, 0) AS peak_per_minute
+        from (select ip,
+                     count(*)                                                   as total_requests,
+                     max(access_time)                                           as last_access_time,
+                     sum(case when status_code = 404 then 1 else 0 end)         as count404,
+                     sum(case when status_code in (401, 403) then 1 else 0 end) as auth_failure_count
+              from access_log
+              where upload_task_id = #{taskId}
+              group by ip) a
+                 left join(select ip, max(cnt) peak_per_minute
+                           from (select ip,
+                                        date_format(access_time, '%Y-%m-%d %H:%i') as minute_bucket,
+                                        count(*)                                   as cnt
+                                 from access_log
+                                 where upload_task_id = #{taskId}
+                                 group by ip, minute_bucket) b
+                           group by ip) c
+                          on a.ip = c.ip;
+    </select>
+</mapper>

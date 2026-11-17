@@ -4,17 +4,23 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hzk.loganomaly.common.utils.ChkNotNull;
+import com.hzk.loganomaly.config.AccessLogConfig;
 import com.hzk.loganomaly.dto.AccessLogDTO;
 import com.hzk.loganomaly.entity.AccessLog;
 import com.hzk.loganomaly.mapper.AccessLogMapper;
 import com.hzk.loganomaly.service.AccessLogService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog> implements AccessLogService {
+
+    private final AccessLogConfig accessLogConfig;
+
     @Override
     public Page<AccessLog> query(AccessLogDTO accessLogDTO) {
         Page<AccessLog> page = new Page<>(accessLogDTO.getPageNum(), accessLogDTO.getPageSize());
@@ -58,11 +64,13 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveLogs(List<AccessLog> logs, Long taskId) {
+
         if (logs == null || logs.isEmpty()) {
             return;
         }
+
         logs.forEach(log -> log.setUploadTaskId(taskId));
-        this.saveBatch(logs, 2000);
+        this.saveBatch(logs, accessLogConfig.getBatchSize());
     }
 
 }

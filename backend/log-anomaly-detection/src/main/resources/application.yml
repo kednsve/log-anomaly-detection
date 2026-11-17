@@ -51,7 +51,7 @@ mybatis-plus:
 # jwt 配置
 jwt:
   secret-key: abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz1234567890
-  expire-time: 3600000 # 毫秒   1H
+  expire-time: 36000000 # 毫秒   10H
 
 # 日志配置
 logging:
@@ -59,3 +59,32 @@ logging:
     root: info
     com.hzk.loganomaly: debug
     org.springframework: warn
+
+# 自定义配置
+my-config:
+  access-log:
+    # 日志上传batch
+    batch-size: 2000
+  # 规则引擎
+  detect-rules:
+    # 高频访问
+    high-frequency:
+      enabled: true
+      # 每分钟访问量
+      peak-per-minute: 60
+      # 总访问数
+      min-total: 60
+    # 目录扫描
+    scan:
+      enabled: true
+      # 404次数
+      min-404: 10
+      # 占比
+      min-ratio: 0.2
+    # 认证失败
+    auth-failure:
+      enabled: true
+      # 总请求
+      min-total: 20
+      # 占比
+      min-ratio: 0.5
