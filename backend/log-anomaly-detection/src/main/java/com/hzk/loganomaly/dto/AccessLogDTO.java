@@ -19,12 +19,17 @@ public class AccessLogDTO {
     private Long pageSize = 10L;
 
     /**
-     * 源 IP（支持模糊查询）
+     * id
+     */
+    private Long id;
+
+    /**
+     * 源 IP
      */
     private String ip;
 
     /**
-     * 状态码（如 200, 403, 404）
+     * 状态码
      */
     private Integer statusCode;
 

@@ -20,18 +20,17 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
         Page<AccessLog> page = new Page<>(accessLogDTO.getPageNum(), accessLogDTO.getPageSize());
         return this.page(
                 page, new LambdaQueryWrapper<AccessLog>()
-                        .like(ChkNotNull.check(accessLogDTO.getIp()), AccessLog::getIp, accessLogDTO.getIp())
+                       .eq(
+                               ChkNotNull.check(accessLogDTO.getId()),
+                               AccessLog::getId,
+                               accessLogDTO.getId()
+                       )
                         .eq(
                                 ChkNotNull.check(accessLogDTO.getStatusCode()),
                                 AccessLog::getStatusCode,
                                 accessLogDTO.getStatusCode()
                         )
                         .eq(ChkNotNull.check(accessLogDTO.getMethod()), AccessLog::getMethod, accessLogDTO.getMethod())
-                        .like(
-                                ChkNotNull.check(accessLogDTO.getIpLocation()),
-                                AccessLog::getIpLocation,
-                                accessLogDTO.getIpLocation()
-                        )
                         .eq(
                                 ChkNotNull.check(accessLogDTO.getFinalAbnormal()),
                                 AccessLog::getFinalAbnormal,
@@ -46,6 +45,12 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
                                 ChkNotNull.check(accessLogDTO.getEndTime()),
                                 AccessLog::getAccessTime,
                                 accessLogDTO.getEndTime()
+                        )
+                        .like(ChkNotNull.check(accessLogDTO.getIp()), AccessLog::getIp, accessLogDTO.getIp())
+                        .like(
+                                ChkNotNull.check(accessLogDTO.getIpLocation()),
+                                AccessLog::getIpLocation,
+                                accessLogDTO.getIpLocation()
                         )
         );
     }

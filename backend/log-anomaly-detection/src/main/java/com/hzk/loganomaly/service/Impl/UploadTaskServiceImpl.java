@@ -1,8 +1,12 @@
 package com.hzk.loganomaly.service.Impl;
 
 import com.alibaba.fastjson2.JSON;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hzk.loganomaly.common.utils.ChkNotNull;
 import com.hzk.loganomaly.common.utils.CsvUtil;
+import com.hzk.loganomaly.dto.UploadTaskDTO;
 import com.hzk.loganomaly.entity.AccessLog;
 import com.hzk.loganomaly.entity.UploadTask;
 import com.hzk.loganomaly.mapper.UploadTaskMapper;
@@ -25,6 +29,11 @@ import java.util.List;
 public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadTask> implements UploadTaskService {
     private final AccessLogService accessLogService;
 
+    /**
+     * 上传任务创建
+     * @param fileName 文件名
+     * @return 返回上传任务对象
+     */
     @Override
     public UploadTask createTask(String fileName) {
         UploadTask uploadTask = new UploadTask();
@@ -35,7 +44,7 @@ public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadT
     }
 
     /**
-     *
+     *  后台异步上传
      * @param taskId 任务id
      * @param file   上传的文件
      */
@@ -88,5 +97,50 @@ public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadT
                 log.info("临时文件已清理：{}", file.getName());
             }
         }
+    }
+
+    /**
+     * 分页查询
+     * @param uploadTaskDTO 查询条件
+     * @return 返回page对象
+     */
+    @Override
+    public Page<UploadTask> query(UploadTaskDTO uploadTaskDTO) {
+        Page<UploadTask> page = new Page<>(uploadTaskDTO.getPageNum(), uploadTaskDTO.getPageSize());
+        return this.page(
+                page,
+                new LambdaQueryWrapper<UploadTask>()
+                        .eq(ChkNotNull.check(uploadTaskDTO.getId()), UploadTask::getId, uploadTaskDTO.getId())
+                        .eq(
+                                ChkNotNull.check(uploadTaskDTO.getStatus()),
+                                UploadTask::getStatus,
+                                uploadTaskDTO.getStatus()
+                        )
+                        .ge(
+                                ChkNotNull.check(uploadTaskDTO.getStartUploadTime()),
+                                UploadTask::getUploadTime,
+                                uploadTaskDTO.getStartUploadTime()
+                        )
+                        .le(
+                                ChkNotNull.check(uploadTaskDTO.getEndUploadTime()),
+                                UploadTask::getUploadTime,
+                                uploadTaskDTO.getEndUploadTime()
+                        )
+                        .ge(
+                                ChkNotNull.check(uploadTaskDTO.getStartFinishTime()),
+                                UploadTask::getFinishTime,
+                                uploadTaskDTO.getStartFinishTime()
+                        )
+                        .le(
+                                ChkNotNull.check(uploadTaskDTO.getEndFinishTime()),
+                                UploadTask::getFinishTime,
+                                uploadTaskDTO.getEndFinishTime()
+                        )
+                        .like(
+                                ChkNotNull.check(uploadTaskDTO.getFileName()),
+                                UploadTask::getFileName,
+                                uploadTaskDTO.getFileName()
+                        )
+        );
     }
 }
