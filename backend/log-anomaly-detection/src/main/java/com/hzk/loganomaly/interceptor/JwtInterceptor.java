@@ -35,7 +35,7 @@ public class JwtInterceptor implements HandlerInterceptor {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json;charset=utf-8");
 
-        Result result = Result.error(401, "未登录或登录失效");
+        Result result = Result.error(403, "未登录或登录失效");
         response.getWriter().write(JSON.toJSONString(result));
 
         return false;

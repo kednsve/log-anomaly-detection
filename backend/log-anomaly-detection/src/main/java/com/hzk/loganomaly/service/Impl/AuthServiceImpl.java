@@ -18,21 +18,17 @@ import org.springframework.stereotype.Service;
 public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final JwtUtil jwtUtil;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder passwordEncoder;
 
     @Override
     public LoginVO login(LoginDTO loginDTO) {
         if (!ChkNotNull.check(loginDTO.getUsername()) || !ChkNotNull.check(loginDTO.getPassword())) {
-            throw new BusinessException("用户名或密码不能为空");
+            throw new BusinessException(400, "用户名或密码不能为空");
         }
 
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, loginDTO.getUsername()));
-        if (user == null) {
-            throw new BusinessException("用户不存在");
-        }
-
-        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
-            throw new BusinessException("用户名或密码错误");
+        if (user == null || !passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
+            throw new BusinessException(401, "用户名或密码错误");
         }
 
         String token = jwtUtil.generateToken(user.getId());

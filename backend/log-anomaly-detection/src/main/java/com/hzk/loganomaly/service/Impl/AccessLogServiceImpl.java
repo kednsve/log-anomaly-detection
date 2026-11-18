@@ -26,11 +26,16 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
         Page<AccessLog> page = new Page<>(accessLogDTO.getPageNum(), accessLogDTO.getPageSize());
         return this.page(
                 page, new LambdaQueryWrapper<AccessLog>()
-                       .eq(
-                               ChkNotNull.check(accessLogDTO.getId()),
-                               AccessLog::getId,
-                               accessLogDTO.getId()
-                       )
+                        .eq(
+                                ChkNotNull.check(accessLogDTO.getId()),
+                                AccessLog::getId,
+                                accessLogDTO.getId()
+                        )
+                        .eq(
+                                ChkNotNull.check(accessLogDTO.getUploadTaskId()),
+                                AccessLog::getUploadTaskId,
+                                accessLogDTO.getUploadTaskId()
+                        )
                         .eq(
                                 ChkNotNull.check(accessLogDTO.getStatusCode()),
                                 AccessLog::getStatusCode,

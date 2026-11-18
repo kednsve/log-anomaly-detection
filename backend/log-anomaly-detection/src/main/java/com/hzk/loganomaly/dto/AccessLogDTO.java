@@ -24,6 +24,11 @@ public class AccessLogDTO {
     private Long id;
 
     /**
+     * 上传任务 ID
+     */
+    private Long uploadTaskId;
+
+    /**
      * 源 IP
      */
     private String ip;

@@ -15,7 +15,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = BusinessException.class)
     public Result handleBusinessException(BusinessException e) {
         log.warn("业务异常：{}", e.getMessage());
-        return Result.error(e.getMessage());
+        return e.getCode() != null ? Result.error(e.getCode(), e.getMessage()) : Result.error(e.getMessage());
     }
 
     @ExceptionHandler(value = BindException.class)
