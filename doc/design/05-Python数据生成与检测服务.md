@@ -1,15 +1,17 @@
 # 05 - Python 数据生成与检测服务
 
-> 版本：2026-11-18
-
 ## 一、当前状态
 
-`backend/detection-service/` 目前包含离线数据生成脚本和一个 FastAPI 桩，**没有检测接口、特征工程、模型或数据库客户端**。
+`backend/detection-service/` 已包含数据生成、特征工程、离线训练与评估，以及训练好的 Isolation Forest 模型。**推理接口和数据库客户端尚未实现**，`main.py` 仍是 FastAPI Hello World 桩。
 
 ```text
 backend/detection-service/
+├── config.py                  # 路径、采样与训练常量
 ├── clean_data.py              # 数据清洗、采样、生成训练/演示/真值文件
 ├── personas.py                # 合成 IP 画像与访问行为
+├── core/features.py           # IP 级特征聚合
+├── train/train.py             # 离线训练与跨文件评估
+├── models/                    # 训练产物（isolation_forest.joblib）
 ├── main.py                    # FastAPI Hello World 桩
 ├── test_main.http             # 接口测试文件（端口 8000）
 ├── requirements.txt           # 依赖版本（Python 3.12）
@@ -20,7 +22,9 @@ backend/detection-service/
 
 - Python 版本：3.12.10；
 - 已安装：fastapi、uvicorn、pandas、numpy、scikit-learn、joblib、pymysql、sqlalchemy、ip2region；
-- 依赖版本锁定在 `requirements.txt`。
+- 依赖版本锁定在 `requirements.txt`；
+- 模型文件：`models/isolation_forest.joblib`；
+- 当前训练使用 `contamination=0.12`。
 
 ## 二、数据生成脚本
 
@@ -32,81 +36,216 @@ backend/detection-service/
 - `<stem>-demo.csv`：后 30%；
 - `<stem>-truth.csv`：IP 级真值（`ip, is_attack, label, attack_type, request_count, location, user_agent`）。
 
-输入/输出目录在脚本顶部硬编码为 `F:/MyProjects/log-anomaly-detection/...`。
+输入/输出目录和 `SAMPLE_SIZE` 来自 `config.py`（`DATA_DIR`、`CLEANED_DIR`、`SAMPLE_SIZE=30000`），不再硬编码本机路径。
 
 处理流程：
 
 1. 只读取 7 列：`Dst Port, Protocol, Timestamp, Flow Duration, TotLen Fwd Pkts, TotLen Bwd Pkts, Label`，其余列忽略；
 2. 丢弃标签为空、NaN 以及标签为表头值 `Label` 的行；
-3. `Timestamp` 按 `%d/%m/%Y %H:%M:%S` 解析，去重；
-4. 过滤 HTTP 端口 `{80, 443, 8000, 8080, 8888}`（`ONLY_HTTP_PORTS` 已定义但未使用，过滤实际无条件执行）；若过滤后不足 1 万行或没有攻击行，回退到全部端口；
-5. 每个文件目标 1 万行，攻击行最多占 30%（`ATTACK_RATIO`）；攻击不足时全部保留，其余用良性行补足。
+3. `Timestamp` 按 `%d/%m/%Y %H:%M:%S` 解析，并按上述列去重；
+4. 正常流和攻击流**分开做端口过滤**：
+   - 攻击流：HTTP 端口行数达到 `need_attack` 时保留 HTTP 端口，否则回退到全部端口；
+   - 正常流：HTTP 端口行数达到 `need_benign` 时保留 HTTP 端口，否则回退到全部端口，只保留 TCP/UDP 行，并将输出端口统一映射为 80；
+   - `need_attack = min(攻击行数, SAMPLE_SIZE × ATTACK_RATIO)`，`need_benign = min(正常行数, SAMPLE_SIZE − need_attack)`；
+5. 采样目标：
+   - `attack_target = min(攻击行数, SAMPLE_SIZE × ATTACK_RATIO)`，当前为最多 9000 行；
+   - `benign_target = min(正常行数, SAMPLE_SIZE − attack_target)`；
+   - 正常行不足时宁可少输出，不再用攻击行补足。
 
 采样与分块：
 
-- 良性流量按 5 分钟间隔切分会话，每块最多 20 行；
-- 攻击流量按 10 分钟切分攻击活动，每块最多 20 行；
-- 会话/块分配给 IP 画像：良性按权重分配，攻击保证每个攻击 IP 至少拿到一个块。
+- 正常流量按 5 分钟间隔切会话，每块最多 20 行；
+- 攻击流量按 10 分钟切 campaign，每块最多 20 行；
+- 会话/块分配给 IP 画像：正常流按权重随机分配；攻击流先保证每个攻击画像拿到一个块（选中块不少于 20 个时），其余按权重分配；
+- 攻击流的权重在画像 shuffle **之后**计算，避免权重和画像错位。
 
-输出列与后端 `CsvUtil` 完全一致（13 列，顺序一致）。
+输出与真值：
+
+- 输出 13 列，顺序与后端 `CsvUtil` 完全一致；
+- truth 只写实际生成过请求的 IP，因此正常 IP 通常少于 200 个；
+- train/demo 是按时间 7:3 切分，**同一个 IP 可能同时出现在两边**，模型评估必须跨文件留出；
+- `ATTACK_RATIO` 是攻击行数上限，不是严格的输出占比上限；当前 30k 数据正常行充足，攻击量足够的文件实际接近 30%，Friday2 因攻击行少约为 1.9%。
 
 ### 2.2 personas.py
 
 提供合成行为层：
 
-- 200 个良性 IP、20 个攻击 IP，其中包含固定 C2 `18.219.211.138`；
+- 200 个正常 IP、20 个攻击 IP，其中包含固定 C2 `18.219.211.138`；
 - 每个画像固定归属地、User-Agent、URL 子集、权重和慢响应标记；
-- 前两个非 C2 攻击 IP 被设置为低频画像；
+- 前两个非 C2 攻击 IP 被设置为低频画像（权重 0.2）；
 - 攻击画像：Botnet、BruteForce、DDoS、WebAttack、Infiltration、Other；
 - 标签映射：`Infilteration`（原始拼写错误）按 infiltration 处理；DoS/DDoS 映射为 DDoS 画像；`Brute Force -XSS` 映射为 BruteForce；`SQL Injection` 映射为 WebAttack；
-- URL、状态码、方法、响应时间合成时加入 10%–15% 的「看起来正常」的攻击请求，以及少量良性 404/500/POST 噪声，使两类数据不完全可分。
+- URL、状态码、方法、响应时间合成时加入 10%–15% 的「看起来正常」的攻击请求，以及少量正常 404/500/POST 噪声，使两类数据不完全可分；
+- ip2region 数据库路径来自 `config.py` 的 `IPDB_PATH`。
 
-### 2.3 已知数据问题：慢速攻击不真实
+### 2.3 已知数据问题
 
-`personas.py` 把所有 DoS/DDoS 标签（包括 `DoS-SlowHTTPTest`）统一映射为 DDoS 画像，响应时间合成得很快。因此数据中不存在真实的慢速攻击样本，Java 规则层的「慢响应」规则已移除。
+**慢速攻击不真实**
 
-恢复慢响应检测的前提：
+`personas.py` 把所有 DoS/DDoS 标签（包括 `DoS-SlowHTTPTest`）统一映射为 DDoS 画像，响应时间合成得很快。因此数据中不存在真实的慢速攻击样本，Java 规则层的「慢响应」规则已移除。恢复慢响应检测需要先修改 `personas.py`，再补回特征和规则。
 
-1. 修改 `personas.py`，为 SlowHTTPTest 生成真实的秒级响应时间；
-2. 在聚合 SQL、`IpFeature` 中补回慢请求特征；
-3. 重新加入慢响应规则与配置。
+**Friday1 原始数据攻击占比高**
 
-## 三、FastAPI 桩
+Friday1 的攻击流绝大多数在 80 端口，正常流大多不在 HTTP 端口，所以旧版统一端口过滤会几乎删光正常行。当前版本改为正常流/攻击流分别过滤，正常流不足时回退到全部端口，已能生成约 140 个正常 IP。
 
-`main.py` 目前只有一个 Hello World 接口，`test_main.http` 指向 `http://localhost:8000`：
+**正常 IP 数量少于 200**
 
-```
-uvicorn main:app --reload --port 8000
-```
+正常块按权重随机分配，不是每个正常画像都保证有数据；truth 只写有请求的 IP，因此每个文件的正常 IP 通常约 120–150 个。
 
-当前 `.venv` 已安装所需依赖，版本见 `requirements.txt`；在其他环境运行时先执行 `pip install -r requirements.txt`。
+**train/demo 共享 IP**
 
-## 四、规划中的检测服务（未实现）
+按时间切分导致同一 IP 同时出现在 train 和 demo，不能直接用同文件 demo 评估；当前训练采用跨文件留出。
 
-后续接入模型层时，计划补充以下结构：
+## 三、特征工程
+
+`core/features.py` 的输入是一行一条访问日志的 DataFrame，输出一行一个 IP 的特征表：`ip` + 25 个特征。
+
+| 类别 | 特征 |
+| --- | --- |
+| 频率 | 总请求数、活跃分钟数、平均每分钟请求、单分钟峰值 |
+| 状态码 | 404、401/403、5xx、200 占比 |
+| URL 多样性 | 唯一路径数、唯一路径占比、URL 熵（按去掉查询参数的路径计算） |
+| 方法 | GET/POST/PUT/HEAD 占比 |
+| 响应时间 | 平均、最大、P95、慢请求（>1s）占比 |
+| 流量 | 平均发送/接收字节、平均连接时长 |
+| 时间 | 夜间（0–6 点）请求占比、请求间隔均值/标准差 |
+
+设计点：
+
+- 不使用 IP、归属地、UA 本身作为特征，避免模型记住身份；
+- URL 先去查询参数，避免正常用户的 `/search?q=xxx` 被算成大量唯一 URL；
+- 不使用标准化，Isolation Forest 是树模型，量纲不影响切分；
+- `FEATURE_COLUMNS` 固定特征顺序，是训练和推理的共同契约。
+
+## 四、训练与评估
+
+`train/train.py` 的流程：
+
+1. 扫描 `data/cleaned/*-train.csv`，配对 train/demo/truth；
+2. 每个文件的 train/demo 只聚合一次特征；
+3. **留一文件交叉评估**：用其余 5 个文件的 train 训练，在剩余文件的 demo 上测试，并对照 truth 计算指标；
+4. 指标：Precision、Recall、F1、AUC、PR-AUC、混淆矩阵；
+5. 按 `attack_type` 统计每类攻击的检出率（模型不预测类型，仅用于评估）；
+6. 用全部 6 个文件的 train 数据重新训练最终模型，保存到 `models/isolation_forest.joblib`。
+
+模型与参数：
 
 ```text
-detection-service/
-├── requirements.txt
-├── main.py                  # FastAPI 入口
-├── config.py                # 数据库连接配置
-├── api/
-│   └── detect.py            # /detect 路由
-├── core/
-│   ├── features.py          # 按 IP 聚合特征
-│   ├── detector.py          # Isolation Forest 加载与预测
-├── db/
-│   └── connection.py        # pymysql / SQLAlchemy
-├── models/                  # 训练好的模型、scaler、特征列
-├── train/
-│   └── train.py             # 离线训练脚本
-└── tests/
-    └── test_detect.py
+IsolationForest(
+    n_estimators=300,
+    contamination=0.12,
+    random_state=42,
+    n_jobs=-1,
+)
 ```
 
-规划中的分工：
+训练时**不使用 truth 标签**，truth 只用于评估，保持无监督异常检测的定位。
 
-- Java 后端在规则检测完成后调用 Python 检测接口；
-- Python 从 `access_log` 读取日志，按 IP 聚合特征，输出 `model_abnormal` / `model_score`；
-- Java 将模型结果与规则结果合并为 `final_abnormal`，并把同一 `(task_id, ip)` 的告警来源更新为 `both`；
-- Java 在调用前把 `upload_task.model_detect` 置 1，成功后置 2、失败置 3；Python 服务不直接修改 `upload_task`。
+当前 30k 数据、`contamination=0.12` 的一次交叉评估结果：
+
+| 指标 | 值 |
+| --- | --- |
+| 平均 Precision | 0.742 |
+| 平均 Recall | 0.916 |
+| 平均 F1 | 0.802 |
+| 平均 AUC | 0.995 |
+| 平均 PR-AUC | 0.961 |
+
+分类型召回：
+
+| 类型 | 检出 |
+| --- | --- |
+| Botnet | 20/20 |
+| BruteForce | 25/25 |
+| Infiltration | 20/20 |
+| WebAttack | 3/3 |
+| DDoS | 29/39（74.4%） |
+
+模型文件包含：
+
+```text
+model            # IsolationForest 实例
+features         # FEATURE_COLUMNS
+contamination    # 0.12
+random_state     # 42
+n_estimators     # 300
+train_stems      # 参与训练的 6 个文件
+train_samples    # 训练 IP 数
+n_features       # 25
+offset           # 模型内部判定阈值（-offset 为异常分数阈值）
+```
+
+尚未记录 `trained_at`、`sklearn_version`、`python_version`，可选补充。
+
+注意：
+
+- `contamination` 是在 0.08–0.15 的交叉评估结果上选的，严格说属于测试集调参；论文中应把整组结果作为阈值敏感性分析报告；
+- 模型只输出异常分数和 0/1 判定，不预测攻击类型；分类型结果来自 truth；
+- 最终保存的模型是用全部 train 数据重训的部署模型，前面表格中的指标来自 6 次留出评估，不是这个最终模型自身的评估。
+
+## 五、推理接口（未实现）
+
+`main.py` 目前只有 Hello World 接口，推理接口尚未编写。规划结构：
+
+```text
+api/
+├── response.py      # 统一 Result、异常处理
+├── schemas.py       # 请求/响应模型
+└── routes.py        # /health、/model/info、/detect
+core/detector.py     # 加载 joblib、调用特征函数、输出分数
+db/connection.py     # MySQL 读取 access_log
+```
+
+规划的接口：
+
+```text
+GET  /health
+GET  /model/info
+POST /detect
+```
+
+`POST /detect` 请求：
+
+```json
+{"taskId": 2, "threshold": null}
+```
+
+响应：
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "taskId": 2,
+    "ipCount": 121,
+    "abnormalIpCount": 16,
+    "threshold": 0.031,
+    "results": [
+      {"ip": "45.12.215.244", "score": 0.412, "abnormal": 1}
+    ]
+  }
+}
+```
+
+职责划分：
+
+- Python 只读 `access_log`，查询指定任务的日志，聚合特征并返回所有 IP 的 `score` / `abnormal`；
+- Python 不修改 `upload_task`、不写 `alert`；
+- Java 负责调用 Python、写 `model_score` / `model_abnormal` / `final_abnormal`、合并告警，并维护 `model_detect` 状态；
+- 模型默认阈值来自 bundle 的 `offset`，请求可传 `threshold` 覆盖。
+
+## 六、运行方式
+
+在 `backend/detection-service/` 下：
+
+```bash
+# 生成数据
+.venv/Scripts/python.exe clean_data.py
+
+# 训练与评估，保存模型
+.venv/Scripts/python.exe -m train.train --contamination 0.12
+
+# 启动 FastAPI 桩（推理接口尚未实现）
+uvicorn main:app --reload --port 8000
+```

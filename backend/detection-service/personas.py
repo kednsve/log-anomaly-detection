@@ -11,12 +11,13 @@ CIC-IDS2018 的 CSV 没有 IP、URL、状态码、User-Agent，这些字段需�
 clean_data.py 负责读取原始流、切会话/战役、把流分配给 IP 并写出 CSV。
 """
 
-import os
 from collections import Counter
 from dataclasses import dataclass, field
 
 import ip2region.util as util
 import ip2region.searcher as xdb
+
+from config import IPDB_PATH
 
 # ================= 配置区 =================
 BENIGN_IP_COUNT = 200        # 正常用户 IP 数量
@@ -37,9 +38,7 @@ ATTACK_IP_PREFIXES = [
 ]
 
 # ================= IP 归属地 =================
-_DB_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "ipdb", "ip2region_v4.xdb"
-)
+_DB_PATH = str(IPDB_PATH)
 searcher = xdb.new_with_vector_index(
     util.IPv4, _DB_PATH, util.load_vector_index_from_file(_DB_PATH)
 )

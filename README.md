@@ -20,7 +20,7 @@
 | 访问日志查询/更新 | 已实现 | `GET /AccessLog/query`、`PUT /AccessLog/update` |
 | 告警查询/更新 | 已实现 | `GET /Alert/query`、`PUT /Alert/update` |
 | 规则引擎 | 已实现 | 三条规则：高频访问、大量 404、认证失败；生成告警、回写标记并记录 `rule_detect` 状态 |
-| Python 模型检测 | 未实现 | `detection-service` 目前只有数据生成脚本和 FastAPI 桩 |
+| Python 模型检测 | 部分实现 | 特征工程、Isolation Forest 训练与离线评估已完成；推理接口和 Java 接入未实现 |
 | 统计接口 | 未实现 | — |
 | Vue 前端 | 未实现 | 仅有结构规划（见设计文档 06） |
 | Redis | 未启用 | 依赖与配置均处于注释状态 |
@@ -32,9 +32,9 @@
 | 层次 | 手段 | 定位 | 状态 |
 | --- | --- | --- | --- |
 | 规则层 | 高频访问、大量 404、认证失败 | 高精度识别行为特征明显的攻击 | 已实现 |
-| 模型层 | Isolation Forest | 识别低频、伪装流量 | 规划中 |
+| 模型层 | Isolation Forest | 识别低频、伪装流量 | 离线训练完成，推理接口待实现 |
 
-规则层把请求级日志按 IP 聚合为行为特征，用 `application.yml` 中的阈值判定，将结果写入 `access_log.rule_abnormal` / `rule_type` / `final_abnormal`，并为每个异常 IP 生成一条 `alert`。模型层接入后，`final_abnormal = rule_abnormal OR model_abnormal`，告警来源通过 `alert_source` 区分 `rule` / `model` / `both`。
+规则层把请求级日志按 IP 聚合为行为特征，用 `application.yml` 中的阈值判定，将结果写入 `access_log.rule_abnormal` / `rule_type` / `final_abnormal`，并为每个异常 IP 生成一条 `alert`。模型层已完成离线训练与跨文件评估：`core/features.py` 按 IP 聚合 25 个行为特征，`train/train.py` 用 Isolation Forest 做留一文件评估并保存 `models/isolation_forest.joblib`。推理接口和 Java 接入尚未实现；接入后 `final_abnormal = rule_abnormal OR model_abnormal`，告警来源通过 `alert_source` 区分 `rule` / `model` / `both`。
 
 原设计中的「慢响应」规则已移除：当前合成数据没有真实慢速攻击样本，开启只会产生误报；待数据生成器修正后再恢复。
 
@@ -80,9 +80,10 @@ Redis 依赖已注释，当前未使用。
 | --- | --- |
 | Python | 3.12.10（`.venv`） |
 | pandas / numpy | 数据清洗与采样 |
-| FastAPI | `main.py` 目前仅 Hello World 桩 |
+| FastAPI | 推理接口尚未实现，`main.py` 仍为 Hello World 桩 |
 | ip2region | 离线 IP 归属地查询（`ipdb/ip2region_v4.xdb`） |
-| scikit-learn / joblib / pymysql / uvicorn | 版本固定在 `requirements.txt`，模型服务未实现 |
+| scikit-learn / joblib | Isolation Forest 训练与离线评估（`train/train.py`） |
+| pymysql / uvicorn | 已安装，推理接口与数据库客户端尚未实现 |
 
 ### 5.3 前端
 
@@ -99,9 +100,12 @@ mvn spring-boot:run
 
 # 3. 生成清洗数据（在 backend/detection-service/ 下）
 .venv/Scripts/python.exe clean_data.py
+
+# 4. 训练模型（生成 models/isolation_forest.joblib）
+.venv/Scripts/python.exe -m train.train --contamination 0.12
 ```
 
-接口默认监听 `http://localhost:8080`，除 `/login` 外需携带 `Authorization: Bearer <token>`。
+接口默认监听 `http://localhost:8080`，除 `/login` 外需携带 `Authorization: Bearer <token>`。Python 侧目前只有离线训练与评估，`uvicorn main:app` 仍是 Hello World 桩，推理接口尚未接入 Java。
 
 ## 七、设计文档
 
@@ -111,5 +115,5 @@ mvn spring-boot:run
 | 02 | [数据库设计](doc/design/02-数据库设计.md) | 4 张表的字段、类型、默认值、索引 |
 | 03 | [后端设计](doc/design/03-后端设计.md) | SpringBoot 目录结构、分层、接口与配置 |
 | 04 | [规则引擎设计](doc/design/04-规则引擎设计.md) | 特征聚合、三条规则、写回幂等、检测接口 |
-| 05 | [Python 数据生成与检测服务](doc/design/05-Python数据生成与检测服务.md) | 数据生成脚本、已知数据问题、模型服务规划 |
+| 05 | [Python 数据生成与检测服务](doc/design/05-Python数据生成与检测服务.md) | 数据生成、特征工程、Isolation Forest 训练与评估、推理接口规划 |
 | 06 | [前端设计（规划）](doc/design/06-前端设计（规划）.md) | Vue3 前端结构规划与接口对应关系 |

@@ -21,6 +21,7 @@ from collections import Counter
 
 import pandas as pd
 
+from config import CLEANED_DIR, DATA_DIR, SAMPLE_SIZE
 from personas import (
     build_personas,
     make_attack_behavior,
@@ -29,12 +30,11 @@ from personas import (
 )
 
 # ================= 配置区 =================
-INPUT_DIR = 'F:/MyProjects/log-anomaly-detection/data/'
-OUTPUT_DIR = 'F:/MyProjects/log-anomaly-detection/data/cleaned/'
+INPUT_DIR = DATA_DIR
+OUTPUT_DIR = CLEANED_DIR
 
-SAMPLE_SIZE = 10000
 RANDOM_SEED = 42
-ATTACK_RATIO = 0.30          # 目标攻击行占比，实际按 Label 分布自动调整
+ATTACK_RATIO = 0.30          # 攻击行占比上限；正常行不足时宁可少输出
 TRAIN_RATIO = 0.70
 
 BENIGN_GAP_MINUTES = 5       # 正常流量切会话的时间间隔
@@ -104,9 +104,10 @@ def generate_rows(blocks, personas, rng, attack):
     if not blocks or not personas:
         return []
 
-    weights = [persona.weight for persona in personas]
     if attack:
         rng.shuffle(personas)
+
+    weights = [persona.weight for persona in personas]
 
     records = []
     for index, block in enumerate(blocks):
@@ -279,19 +280,40 @@ def process_file(input_file, seed):
         f"（去重 {before_dedup - len(df)} 行，时间/标签无效 {total_raw - before_dedup} 行）"
     )
 
-    http_df = df[df["Dst Port"].isin(HTTP_PORTS)]
-    http_attack = int((http_df["Label"].str.lower() != "benign").sum())
-    if len(http_df) >= SAMPLE_SIZE and http_attack > 0:
-        print(f"仅保留 HTTP(S) 端口流量：{len(http_df)} 行（攻击 {http_attack} 行）")
-        df = http_df
+    # 正常流和攻击流分开做端口过滤：
+    # 攻击流优先保留 HTTP(S) 端口；正常流在 HTTP 端口上样本不足时，
+    # 回退到全部端口（只保留 TCP/UDP 有效行），避免整个文件几乎只剩攻击。
+    benign_all = df[df["Label"].str.lower() == "benign"].copy()
+    attack_all = df[df["Label"].str.lower() != "benign"].copy()
+
+    benign_http = benign_all[benign_all["Dst Port"].isin(HTTP_PORTS)]
+    attack_http = attack_all[attack_all["Dst Port"].isin(HTTP_PORTS)]
+
+    attack_cap = int(round(SAMPLE_SIZE * ATTACK_RATIO))
+    need_attack = min(len(attack_all), attack_cap)
+    need_benign = min(len(benign_all), SAMPLE_SIZE - need_attack)
+
+    if len(attack_http) >= need_attack:
+        attack_df = attack_http
     else:
+        attack_df = attack_all
         print(
-            f"HTTP 端口流量不足（{len(http_df)} 行，攻击 {http_attack} 行），"
-            f"保留全部端口"
+            f"攻击流 HTTP(S) 端口不足（{len(attack_http)}/{need_attack} 行），"
+            f"回退到全部端口"
         )
 
-    benign_df = df[df["Label"].str.lower() == "benign"].copy()
-    attack_df = df[df["Label"].str.lower() != "benign"].copy()
+    if len(benign_http) >= need_benign:
+        benign_df = benign_http
+        print(f"正常流保留 HTTP(S) 端口：{len(benign_df)} 行")
+    else:
+        # 正常流量在 HTTP 端口上不足时回退全部端口，并只保留有效协议；
+        # 统一映射到 80 端口，保证输出仍是一份 Web 访问日志。
+        benign_df = benign_all[benign_all["Protocol"].isin([6, 17])].copy()
+        benign_df["Dst Port"] = 80
+        print(
+            f"正常流 HTTP(S) 端口不足（{len(benign_http)}/{need_benign} 行），"
+            f"回退到全部端口：{len(benign_df)} 行"
+        )
 
     print(f"正常 {len(benign_df)} 行，攻击 {len(attack_df)} 行")
 
@@ -302,14 +324,15 @@ def process_file(input_file, seed):
         print("没有攻击样本，跳过该文件。")
         return
 
-    # 目标行数：攻击占比按实际数据自动收缩
-    if len(df) <= SAMPLE_SIZE:
-        benign_target, attack_target = len(benign_df), len(attack_df)
-    else:
-        attack_target = min(len(attack_df), int(round(SAMPLE_SIZE * ATTACK_RATIO)))
-        benign_target = min(len(benign_df), SAMPLE_SIZE - attack_target)
-        if benign_target + attack_target < SAMPLE_SIZE:
-            attack_target = min(len(attack_df), SAMPLE_SIZE - benign_target)
+    # 攻击行最多占 ATTACK_RATIO；正常行不足时宁可少输出，也不再用攻击补足
+    attack_target = min(len(attack_df), attack_cap)
+    benign_target = min(len(benign_df), SAMPLE_SIZE - attack_target)
+
+    if benign_target + attack_target < SAMPLE_SIZE:
+        print(
+            f"正常样本不足，本次生成 {benign_target + attack_target} 行"
+            f"（目标 {SAMPLE_SIZE} 行）"
+        )
 
     # 构造 IP 画像池
     benign_personas, attack_personas = build_personas(attack_df, rng)
