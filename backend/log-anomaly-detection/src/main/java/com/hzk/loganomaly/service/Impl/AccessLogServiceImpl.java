@@ -21,6 +21,11 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
 
     private final AccessLogConfig accessLogConfig;
 
+    /**
+     * 分页查询 accessLog
+     * @param accessLogDTO 查询条件
+     * @return 查询结果
+     */
     @Override
     public Page<AccessLog> query(AccessLogDTO accessLogDTO) {
         Page<AccessLog> page = new Page<>(accessLogDTO.getPageNum(), accessLogDTO.getPageSize());
@@ -63,9 +68,16 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
                                 AccessLog::getIpLocation,
                                 accessLogDTO.getIpLocation()
                         )
+                        .orderByDesc(AccessLog::getUploadTaskId)
+                        .orderByAsc(AccessLog::getId)
         );
     }
 
+    /**
+     * 保存 AccessLog 由 UploadTaskService 调用
+     * @param logs AccessLog 列表
+     * @param taskId UploadTask Id
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveLogs(List<AccessLog> logs, Long taskId) {

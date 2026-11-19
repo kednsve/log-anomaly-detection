@@ -121,6 +121,16 @@ public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadT
                                 UploadTask::getUploadTime,
                                 uploadTaskDTO.getStartUploadTime()
                         )
+                        .eq(
+                                ChkNotNull.check(uploadTaskDTO.getRuleDetect()),
+                                UploadTask::getRuleDetect,
+                                uploadTaskDTO.getRuleDetect()
+                        )
+                        .eq(
+                                ChkNotNull.check(uploadTaskDTO.getModelDetect()),
+                                UploadTask::getModelDetect,
+                                uploadTaskDTO.getModelDetect()
+                        )
                         .le(
                                 ChkNotNull.check(uploadTaskDTO.getEndUploadTime()),
                                 UploadTask::getUploadTime,
@@ -141,6 +151,7 @@ public class UploadTaskServiceImpl extends ServiceImpl<UploadTaskMapper, UploadT
                                 UploadTask::getFileName,
                                 uploadTaskDTO.getFileName()
                         )
+                        .orderByDesc(UploadTask::getId)
         );
     }
 }

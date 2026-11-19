@@ -19,8 +19,7 @@
 | CSV 异步上传 | 已实现 | 上传后创建任务，后台解析入库，支持轮询与分页查询 |
 | 访问日志查询/更新 | 已实现 | `GET /AccessLog/query`、`PUT /AccessLog/update` |
 | 告警查询/更新 | 已实现 | `GET /Alert/query`、`PUT /Alert/update` |
-| 规则引擎 | 已实现 | 三条规则：高频访问、大量 404、认证失败；生成告警并回写标记 |
-| 规则单元测试 | 已实现 | 三条规则的边界测试，共 14 个用例 |
+| 规则引擎 | 已实现 | 三条规则：高频访问、大量 404、认证失败；生成告警、回写标记并记录 `rule_detect` 状态 |
 | Python 模型检测 | 未实现 | `detection-service` 目前只有数据生成脚本和 FastAPI 桩 |
 | 统计接口 | 未实现 | — |
 | Vue 前端 | 未实现 | 仅有结构规划（见设计文档 06） |
@@ -71,7 +70,6 @@
 | Lombok | 实体、构造器、日志 |
 | Jackson | JSON 与日期格式化 |
 | fastjson2 | 2.0.66，失败明细 JSON |
-| JUnit 5 | 单元测试 |
 | SLF4J + Logback | 日志 |
 
 Redis 依赖已注释，当前未使用。
@@ -84,7 +82,7 @@ Redis 依赖已注释，当前未使用。
 | pandas / numpy | 数据清洗与采样 |
 | FastAPI | `main.py` 目前仅 Hello World 桩 |
 | ip2region | 离线 IP 归属地查询（`ipdb/ip2region_v4.xdb`） |
-| scikit-learn / joblib / pymysql / uvicorn | 尚未安装，模型服务未实现 |
+| scikit-learn / joblib / pymysql / uvicorn | 版本固定在 `requirements.txt`，模型服务未实现 |
 
 ### 5.3 前端
 

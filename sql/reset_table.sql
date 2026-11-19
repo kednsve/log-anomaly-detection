@@ -16,7 +16,7 @@ CREATE TABLE `alert` (
                          KEY `idx_ip` (`ip`),
                          KEY `idx_status` (`status`),
                          KEY `idx_time` (`trigger_time`),
-			 KEY `idx_task` (`task_id`)
+                         UNIQUE KEY `uk_task_ip` (`task_id`, `ip`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='异常告警表';
 CREATE TABLE `upload_task` (
                                `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -28,6 +28,8 @@ CREATE TABLE `upload_task` (
                                `status` tinyint DEFAULT '0' COMMENT '0处理中,1完成,2失败',
                                `upload_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
                                `finish_time` datetime DEFAULT NULL COMMENT '完成时间',
+                               `rule_detect` tinyint DEFAULT '0' COMMENT '规则检测状态:0未检测,1检测中,2完成,3失败',
+                               `model_detect` tinyint DEFAULT '0' COMMENT '模型检测状态:0未检测,1检测中,2完成,3失败',
                                PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='上传任务表';
 create table `access_log`
@@ -63,8 +65,8 @@ create index idx_abnormal
 create index idx_ip
     on access_log (ip);
 
-create index idx_task
-    on access_log (upload_task_id);
+create index idx_task_ip
+    on access_log (upload_task_id, ip);
 
 create index idx_time
     on access_log (access_time);

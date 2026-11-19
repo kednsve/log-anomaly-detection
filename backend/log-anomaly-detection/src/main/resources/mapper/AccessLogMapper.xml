@@ -3,6 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.hzk.loganomaly.mapper.AccessLogMapper">
+    <!-- 一次查询得到每个 IP 的：总请求数、最后访问时间、404 数、401/403 数，以及按分钟分桶后的单分钟请求峰值 -->
     <select id="selectIpFeatures" resultType="com.hzk.loganomaly.rule.IpFeature">
         select a.ip,
                a.total_requests,

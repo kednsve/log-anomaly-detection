@@ -28,8 +28,8 @@ public class AuthFailureRule implements Rule {
         DetectRuleConfig.AuthFailure authFailure = detectRuleConfig.getAuthFailure();
         return authFailure.isEnabled()
                 && ipFeature.getTotalRequests() != null
-                && ipFeature.getTotalRequests() > authFailure.getMinTotal()
-                && ipFeature.getAuthFailureRatio() > authFailure.getMinRatio();
+                && ipFeature.getTotalRequests() >= authFailure.getMinTotal()
+                && ipFeature.getAuthFailureRatio() >= authFailure.getMinRatio();
     }
 
     @Override

@@ -35,7 +35,14 @@ public class UploadTaskDTO {
      * 任务状态：0-处理中，1-完成，2-失败
      */
     private Integer status;
-
+    /**
+     * 规则检测状态 0 未检测 1 检测中 2成功 3 失败
+     */
+    private Integer ruleDetect;
+    /**
+     * 模型检测状态 0 未检测 1 检测中 2成功 3 失败
+     */
+    private Integer modelDetect;
     /**
      * 上传时间范围-开始
      */

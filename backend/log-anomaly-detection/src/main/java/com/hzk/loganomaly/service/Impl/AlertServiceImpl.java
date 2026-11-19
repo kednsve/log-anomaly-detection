@@ -12,6 +12,11 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements AlertService {
+    /**
+     * 警告分页查询
+     * @param alertDTO 查询条件
+     * @return  查询结果
+     */
     @Override
     public Page<Alert> query(AlertDTO alertDTO) {
         Page<Alert> page = new Page<>(alertDTO.getPageNum(), alertDTO.getPageSize());
@@ -61,6 +66,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                                 Alert::getHandleTime,
                                 alertDTO.getEndHandleTime()
                         )
+                        .orderByDesc(Alert::getId)
         );
     }
 }

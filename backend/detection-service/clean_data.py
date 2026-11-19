@@ -41,7 +41,6 @@ BENIGN_GAP_MINUTES = 5       # 正常流量切会话的时间间隔
 ATTACK_GAP_MINUTES = 10      # 攻击流量切 campaign 的时间间隔
 BLOCK_MAX_ROWS = 20          # 会话 / campaign 的最大块行数
 
-ONLY_HTTP_PORTS = True       # 只保留 HTTP(S) 端口，让数据更像 Web 访问日志
 HTTP_PORTS = {80, 443, 8000, 8080, 8888}
 
 COLUMNS_ORDER = [

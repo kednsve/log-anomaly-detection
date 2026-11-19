@@ -12,15 +12,15 @@ backend/detection-service/
 ├── personas.py                # 合成 IP 画像与访问行为
 ├── main.py                    # FastAPI Hello World 桩
 ├── test_main.http             # 接口测试文件（端口 8000）
+├── requirements.txt           # 依赖版本（Python 3.12）
 ├── ipdb/
 │   └── ip2region_v4.xdb       # 离线 IP 归属地库（已跟踪）
 └── .venv/                     # 本地虚拟环境（gitignore，Windows 布局）
 ```
 
 - Python 版本：3.12.10；
-- 已安装：fastapi、pandas、numpy、ip2region；
-- 未安装：uvicorn、pymysql、scikit-learn、joblib；
-- 没有 `requirements.txt`。
+- 已安装：fastapi、uvicorn、pandas、numpy、scikit-learn、joblib、pymysql、sqlalchemy、ip2region；
+- 依赖版本锁定在 `requirements.txt`。
 
 ## 二、数据生成脚本
 
@@ -79,7 +79,7 @@ backend/detection-service/
 uvicorn main:app --reload --port 8000
 ```
 
-但当前虚拟环境未安装 `uvicorn`，需要先安装依赖。
+当前 `.venv` 已安装所需依赖，版本见 `requirements.txt`；在其他环境运行时先执行 `pip install -r requirements.txt`。
 
 ## 四、规划中的检测服务（未实现）
 
@@ -108,4 +108,5 @@ detection-service/
 
 - Java 后端在规则检测完成后调用 Python 检测接口；
 - Python 从 `access_log` 读取日志，按 IP 聚合特征，输出 `model_abnormal` / `model_score`；
-- Java 将模型结果与规则结果合并为 `final_abnormal`，并把同一 `(task_id, ip)` 的告警来源更新为 `both`。
+- Java 将模型结果与规则结果合并为 `final_abnormal`，并把同一 `(task_id, ip)` 的告警来源更新为 `both`；
+- Java 在调用前把 `upload_task.model_detect` 置 1，成功后置 2、失败置 3；Python 服务不直接修改 `upload_task`。

@@ -7,8 +7,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MultipartException;
 
-import java.io.IOException;
-
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -16,6 +14,12 @@ public class GlobalExceptionHandler {
     public Result handleBusinessException(BusinessException e) {
         log.warn("业务异常：{}", e.getMessage());
         return e.getCode() != null ? Result.error(e.getCode(), e.getMessage()) : Result.error(e.getMessage());
+    }
+
+    @ExceptionHandler(value = MultipartException.class)
+    public Result handleMultipartException(MultipartException e) {
+        log.warn("文件上传异常：{}", e.getMessage());
+        return Result.error("文件上传失败："+e.getMessage());
     }
 
     @ExceptionHandler(value = BindException.class)

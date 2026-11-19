@@ -20,6 +20,11 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtil jwtUtil;
     private final BCryptPasswordEncoder passwordEncoder;
 
+    /**
+     * 登录
+     * @param loginDTO 包含账号密码
+     * @return  用户
+     */
     @Override
     public LoginVO login(LoginDTO loginDTO) {
         if (!ChkNotNull.check(loginDTO.getUsername()) || !ChkNotNull.check(loginDTO.getPassword())) {

@@ -26,6 +26,12 @@ public class RuleResultWriter {
     private final AccessLogService accessLogService;
     private final AlertService alertService;
 
+    /**
+     * 写回
+     * @param taskId    uploadTaskId
+     * @param hitMap    命中规则
+     * @param featureMap    特征map
+     */
     @Transactional(rollbackFor = Exception.class)
     public void write(Long taskId,
                       Map<String, List<RuleHit>> hitMap,
