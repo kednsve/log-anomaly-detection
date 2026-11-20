@@ -1,7 +1,16 @@
 package com.hzk.loganomaly.service;
 
-import com.hzk.loganomaly.dto.DetectResultDTO;
-
 public interface DetectService {
-    DetectResultDTO detect(Long taskId);
+    void claimRuleDetect(Long taskId);
+
+    void claimModelDetect(Long taskId);
+
+    void claimDetectAll(Long taskId);
+
+    void runRuleAsync(Long taskId);
+
+    void runModelAsync(Long taskId);
+
+    void runAllAsync(Long taskId);
+
 }

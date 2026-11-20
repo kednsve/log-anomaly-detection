@@ -11,4 +11,5 @@ public interface AccessLogService extends IService<AccessLog> {
     Page<AccessLog> query(AccessLogDTO accessLogDTO);
 
     void saveLogs(List<AccessLog> logs, Long taskId);
+
 }

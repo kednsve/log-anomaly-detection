@@ -28,26 +28,45 @@ public class RuleResultWriter {
 
     /**
      * 写回
-     * @param taskId    uploadTaskId
-     * @param hitMap    命中规则
-     * @param featureMap    特征map
+     *
+     * @param taskId     uploadTaskId
+     * @param hitMap     命中规则
+     * @param featureMap 特征map
      */
     @Transactional(rollbackFor = Exception.class)
-    public void write(Long taskId,
-                      Map<String, List<RuleHit>> hitMap,
-                      Map<String, IpFeature> featureMap) {
+    public void write(
+            Long taskId,
+            Map<String, List<RuleHit>> hitMap,
+            Map<String, IpFeature> featureMap
+    ) {
         // 重置规则判断标记
         accessLogService.update(new LambdaUpdateWrapper<AccessLog>()
                                         .eq(AccessLog::getUploadTaskId, taskId)
                                         .set(AccessLog::getRuleAbnormal, 0)
                                         .set(AccessLog::getRuleType, null)
-                                        .setSql("final_abnormal = model_abnormal"));
-        //  删除旧警告
+                                        .setSql("final_abnormal = model_abnormal")
+        );
+        // both 回退到 model
+        alertService.update(new LambdaUpdateWrapper<Alert>()
+                                    .eq(Alert::getTaskId, taskId)
+                                    .eq(Alert::getAlertSource, "both")
+                                    .set(Alert::getAlertSource, "model")
+        );
+        //  删除单 rule 警告
         alertService.remove(new LambdaQueryWrapper<Alert>()
-                                    .eq(Alert::getTaskId, taskId));
+                                    .eq(Alert::getTaskId, taskId)
+                                    .eq(Alert::getAlertSource, "rule")
+        );
 
         //  规则命中的IP 写入规则检测结果和警告
-        List<Alert> alerts = new ArrayList<>();
+        //  警告只剩下模型警告
+        Map<String, Alert> modelAlerts = alertService
+                .list(new LambdaQueryWrapper<Alert>().eq(Alert::getTaskId, taskId))
+                .stream()
+                .collect(Collectors.toMap(Alert::getIp, a -> a));
+
+        List<Alert> inserts = new ArrayList<>();
+        List<Alert> updates = new ArrayList<>();
         for (Map.Entry<String, List<RuleHit>> entry : hitMap.entrySet()) {
             String ip = entry.getKey();
             List<RuleHit> hits = entry.getValue();
@@ -56,13 +75,13 @@ public class RuleResultWriter {
                                   .map(RuleHit::type)
                                   .collect(Collectors.joining(","));
 
-            // 写入结果
             accessLogService.update(new LambdaUpdateWrapper<AccessLog>()
                                             .eq(AccessLog::getUploadTaskId, taskId)
                                             .eq(AccessLog::getIp, ip)
                                             .set(AccessLog::getRuleAbnormal, 1)
                                             .set(AccessLog::getRuleType, ruleType)
-                                            .set(AccessLog::getFinalAbnormal, 1));
+                                            .set(AccessLog::getFinalAbnormal, 1)
+            );
 
             String alertType = ruleType.length() > 50 ? "多规则命中" : ruleType;
 
@@ -73,22 +92,36 @@ public class RuleResultWriter {
                 description = description.substring(0, 497) + "...";
             }
 
-            Alert alert = new Alert();
-            alert.setTaskId(taskId);
-            alert.setIp(ip);
-            alert.setAlertType(alertType);
-            alert.setAlertSource("rule");
-            alert.setDescription(description);
-            alert.setTriggerTime(featureMap.get(ip).getLastAccessTime());
-            alert.setStatus(0);
-            alerts.add(alert);
+            Alert existing = modelAlerts.get(ip);
+            if (existing != null) {
+                // 升级到 both
+                existing.setAlertSource("both");
+                existing.setAlertType(alertType);
+                existing.setDescription(description);
+                existing.setTriggerTime(featureMap.get(ip).getLastAccessTime());
+                updates.add(existing);
+            } else {
+                Alert alert = new Alert();
+                alert.setTaskId(taskId);
+                alert.setIp(ip);
+                alert.setAlertType(alertType);
+                alert.setAlertSource("rule");
+                alert.setDescription(description);
+                alert.setTriggerTime(featureMap.get(ip).getLastAccessTime());
+                alert.setStatus(0);
+                inserts.add(alert);
+            }
+        }
+        if (!inserts.isEmpty()) {
+            alertService.saveBatch(inserts);
+        }
+        if (!updates.isEmpty()) {
+            alertService.updateBatchById(updates);
         }
 
-        if (!alerts.isEmpty()) {
-            alertService.saveBatch(alerts);
-        }
-
-        log.info("任务 {} 规则写回完成：命中 IP {} 个，告警 {} 条",
-                 taskId, hitMap.size(), alerts.size());
+        log.info(
+                "任务 {} 规则写回完成：命中 IP {} 个，告警 {} 条",
+                taskId, hitMap.size(), inserts.size()+ updates.size()
+        );
     }
 }

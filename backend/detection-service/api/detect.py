@@ -39,6 +39,5 @@ def detect(req: DetectRequest):
         taskId=req.taskId,
         ipCount=len(scores),
         abnormalIpCount=int(scored["is_abnormal"].sum()),
-        elapsedMs=int((time.perf_counter() - start) * 1000),
         scores=scores,
     )

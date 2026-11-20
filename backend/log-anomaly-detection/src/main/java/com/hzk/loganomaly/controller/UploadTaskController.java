@@ -56,7 +56,11 @@ public class UploadTaskController {
         }
     }
 
-    //  前端轮询文件上传状态用
+    /**
+     * 前端轮询接口
+     * @param taskId 任务ID
+     * @return 任务对象
+     */
     @GetMapping("/polling")
     public Result polling(@RequestParam(required = false) Long taskId){
         if (taskId == null) {

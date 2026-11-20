@@ -43,7 +43,9 @@ CREATE TABLE `upload_task` (
                                `upload_time`  DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
                                `finish_time`  DATETIME     DEFAULT NULL COMMENT '完成时间',
                                `rule_detect`  TINYINT      DEFAULT 0 COMMENT '规则检测状态:0未检测,1检测中,2完成,3失败',
+                               `rule_detail`  VARCHAR(500) DEFAULT NULL COMMENT '规则检测结果摘要(JSON)',
                                `model_detect` TINYINT      DEFAULT 0 COMMENT '模型检测状态:0未检测,1检测中,2完成,3失败',
+                               `model_detail` VARCHAR(500) DEFAULT NULL COMMENT '模型检测结果摘要(JSON)',
                                PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='上传任务表';
 

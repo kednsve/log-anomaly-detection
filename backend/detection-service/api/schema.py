@@ -13,5 +13,4 @@ class DetectResponse(BaseModel):
     taskId: int
     ipCount: int
     abnormalIpCount: int
-    elapsedMs: int
     scores: list[IpScore]

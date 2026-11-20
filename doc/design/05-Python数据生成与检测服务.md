@@ -2,18 +2,21 @@
 
 ## 一、当前状态
 
-`backend/detection-service/` 已包含数据生成、特征工程、离线训练与评估，以及训练好的 Isolation Forest 模型。**推理接口和数据库客户端尚未实现**，`main.py` 仍是 FastAPI Hello World 桩。
+`backend/detection-service/` 已包含数据生成、特征工程、离线训练与评估、训练好的 Isolation Forest 模型，以及 FastAPI 推理服务。Java 后端通过 `ModelDetectClient` 调用推理服务，并负责全部数据库写回。
 
 ```text
 backend/detection-service/
-├── config.py                  # 路径、采样与训练常量
+├── config.py                  # 路径、采样、训练常量与数据库连接
 ├── clean_data.py              # 数据清洗、采样、生成训练/演示/真值文件
 ├── personas.py                # 合成 IP 画像与访问行为
-├── core/features.py           # IP 级特征聚合
+├── core/features.py           # IP 级特征聚合（build_features）
+├── core/inference.py          # 模型加载与打分（score_logs）
 ├── train/train.py             # 离线训练与跨文件评估
+├── db/database.py             # MySQL 只读客户端（load_logs）
+├── api/schema.py              # 请求/响应模型
+├── api/detect.py              # POST /detect 推理路由
 ├── models/                    # 训练产物（isolation_forest.joblib）
-├── main.py                    # FastAPI Hello World 桩
-├── test_main.http             # 接口测试文件（端口 8000）
+├── main.py                    # FastAPI 入口（/detect + /online）
 ├── requirements.txt           # 依赖版本（Python 3.12）
 ├── ipdb/
 │   └── ip2region_v4.xdb       # 离线 IP 归属地库（已跟踪）
@@ -21,10 +24,10 @@ backend/detection-service/
 ```
 
 - Python 版本：3.12.10；
-- 已安装：fastapi、uvicorn、pandas、numpy、scikit-learn、joblib、pymysql、sqlalchemy、ip2region；
-- 依赖版本锁定在 `requirements.txt`；
+- 依赖：fastapi、uvicorn、pandas、numpy、scikit-learn、joblib、pymysql、sqlalchemy、ip2region，版本锁定在 `requirements.txt`；
 - 模型文件：`models/isolation_forest.joblib`；
-- 当前训练使用 `contamination=0.12`。
+- 当前训练使用 `contamination=0.12`；
+- 推理服务只读 `access_log`，不写任何表。
 
 ## 二、数据生成脚本
 
@@ -98,7 +101,7 @@ Friday1 的攻击流绝大多数在 80 端口，正常流大多不在 HTTP 端�
 
 ## 三、特征工程
 
-`core/features.py` 的输入是一行一条访问日志的 DataFrame，输出一行一个 IP 的特征表：`ip` + 25 个特征。
+`core/features.py` 的入口函数是 `build_features`（训练与推理共用），输入是一行一条访问日志的 DataFrame，输出一行一个 IP 的特征表：`ip` + 25 个特征。
 
 | 类别 | 特征 |
 | --- | --- |
@@ -172,7 +175,7 @@ n_estimators     # 300
 train_stems      # 参与训练的 6 个文件
 train_samples    # 训练 IP 数
 n_features       # 25
-offset           # 模型内部判定阈值（-offset 为异常分数阈值）
+offset           # score_samples 的判定阈值（decision_function = score_samples - offset）
 ```
 
 尚未记录 `trained_at`、`sklearn_version`、`python_version`，可选补充。
@@ -183,57 +186,58 @@ offset           # 模型内部判定阈值（-offset 为异常分数阈值）
 - 模型只输出异常分数和 0/1 判定，不预测攻击类型；分类型结果来自 truth；
 - 最终保存的模型是用全部 train 数据重训的部署模型，前面表格中的指标来自 6 次留出评估，不是这个最终模型自身的评估。
 
-## 五、推理接口（未实现）
+## 五、推理服务（已实现）
 
-`main.py` 目前只有 Hello World 接口，推理接口尚未编写。规划结构：
+FastAPI 服务由 `main.py` 启动，提供两个接口：
 
-```text
-api/
-├── response.py      # 统一 Result、异常处理
-├── schemas.py       # 请求/响应模型
-└── routes.py        # /health、/model/info、/detect
-core/detector.py     # 加载 joblib、调用特征函数、输出分数
-db/connection.py     # MySQL 读取 access_log
-```
+| 接口 | 说明 |
+| --- | --- |
+| `GET /online` | 探活，返回 `{"status": "ok"}`，供 Java 调用前检查 |
+| `POST /detect` | 按任务 ID 读取访问日志、聚合特征、加载模型打分 |
 
-规划的接口：
+代码结构：
 
 ```text
-GET  /health
-GET  /model/info
-POST /detect
+db/database.py      # SQLAlchemy engine + load_logs(task_id)
+core/inference.py   # score_logs(logs)：加载 joblib、build_features、打分
+api/schema.py       # DetectRequest / IpScore / DetectResponse
+api/detect.py       # POST /detect 路由
+main.py             # FastAPI 应用 + GET /online
 ```
 
 `POST /detect` 请求：
 
 ```json
-{"taskId": 2, "threshold": null}
+{"taskId": 6}
 ```
 
 响应：
 
 ```json
 {
-  "code": 200,
-  "msg": "success",
-  "data": {
-    "taskId": 2,
-    "ipCount": 121,
-    "abnormalIpCount": 16,
-    "threshold": 0.031,
-    "results": [
-      {"ip": "45.12.215.244", "score": 0.412, "abnormal": 1}
-    ]
-  }
+  "taskId": 6,
+  "ipCount": 145,
+  "abnormalIpCount": 17,
+  "scores": [
+    {"ip": "103.45.152.188", "score": 0.0022, "isAbnormal": true,
+     "lastAccessTime": "2018-02-16 01:48:43"}
+  ]
 }
 ```
 
+说明：
+
+- `scores` 包含**全部 IP**；`isAbnormal=false` 的条目 Java 不使用，只写异常 IP 的分数；
+- `score = -decision_function`，越大越异常；`isAbnormal` 对应 `predict() == -1`，即 `score > 0`（等价于 `score_samples < bundle["offset"]`）；
+- `lastAccessTime` 是该 IP 最后一条日志的时间，Java 用它作为模型告警的 `trigger_time`；
+- `taskId <= 0` 返回 400，任务没有日志返回 404；
+- 模型懒加载，进程内只读一次 joblib；读取日志用 SQLAlchemy `text()` + 命名参数（SQLAlchemy 2.x 要求）。
+
 职责划分：
 
-- Python 只读 `access_log`，查询指定任务的日志，聚合特征并返回所有 IP 的 `score` / `abnormal`；
-- Python 不修改 `upload_task`、不写 `alert`；
-- Java 负责调用 Python、写 `model_score` / `model_abnormal` / `final_abnormal`、合并告警，并维护 `model_detect` 状态；
-- 模型默认阈值来自 bundle 的 `offset`，请求可传 `threshold` 覆盖。
+- Python 只读 `access_log`，不修改 `upload_task`、不写 `alert`；
+- Java 负责调用 Python、写 `model_score` / `model_abnormal` / `final_abnormal`、合并告警，并维护 `model_detect` 状态与 `model_detail` 摘要；
+- Java 调用前先请求 `GET /online`（1s 连接 / 2s 读超时）；离线时该次模型检测失败（`model_detect=3`），日志提示「模型检测服务离线」。
 
 ## 六、运行方式
 
@@ -246,6 +250,9 @@ POST /detect
 # 训练与评估，保存模型
 .venv/Scripts/python.exe -m train.train --contamination 0.12
 
-# 启动 FastAPI 桩（推理接口尚未实现）
-uvicorn main:app --reload --port 8000
+# 启动推理服务（端口 8000）
+.venv/Scripts/python.exe -m uvicorn main:app --reload --port 8000
+# 也可以直接运行：.venv/Scripts/python.exe main.py
 ```
+
+Java 侧的模型检测（`/Detect/runModel`、`/Detect/runAll`）依赖该服务在线；规则检测不受影响。

@@ -14,22 +14,22 @@ public class DetectRuleConfig {
 
     @Data
     public static class HighFrequency {
-        private boolean enabled = true;
-        private int peakPerMinute = 60;
-        private int minTotal = 60;
+        private boolean enabled;
+        private int peakPerMinute;
+        private int minTotal;
     }
 
     @Data
     public static class Scan {
-        private boolean enabled = true;
-        private int min404 = 10;
-        private double minRatio = 0.2;
+        private boolean enabled;
+        private int min404;
+        private double minRatio;
     }
 
     @Data
     public static class AuthFailure {
-        private boolean enabled = true;
-        private int minTotal = 20;
-        private double minRatio = 0.5;
+        private boolean enabled;
+        private int minTotal;
+        private double minRatio;
     }
 }

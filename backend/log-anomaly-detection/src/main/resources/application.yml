@@ -88,3 +88,8 @@ my-config:
       min-total: 20
       # 占比
       min-ratio: 0.5
+  model-detect:
+    enabled: true
+    base-url: http://localhost:8000
+    connect-timeout-ms: 3000
+    read-timeout-ms: 60000

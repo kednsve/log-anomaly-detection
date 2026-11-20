@@ -23,6 +23,7 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
 
     /**
      * 分页查询 accessLog
+     *
      * @param accessLogDTO 查询条件
      * @return 查询结果
      */
@@ -75,7 +76,8 @@ public class AccessLogServiceImpl extends ServiceImpl<AccessLogMapper, AccessLog
 
     /**
      * 保存 AccessLog 由 UploadTaskService 调用
-     * @param logs AccessLog 列表
+     *
+     * @param logs   AccessLog 列表
      * @param taskId UploadTask Id
      */
     @Override

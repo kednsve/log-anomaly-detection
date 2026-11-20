@@ -53,4 +53,8 @@ public class UploadTask {
      * 模型检测状态 0 未检测 1 检测中 2成功 3 失败
      */
     private Integer modelDetect;
+    /** 规则检测结果 */
+    private String ruleDetail;
+    /** 模型检测结果 */
+    private String modelDetail;
 }

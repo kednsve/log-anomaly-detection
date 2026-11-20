@@ -29,7 +29,9 @@ CREATE TABLE `upload_task` (
                                `upload_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
                                `finish_time` datetime DEFAULT NULL COMMENT '完成时间',
                                `rule_detect` tinyint DEFAULT '0' COMMENT '规则检测状态:0未检测,1检测中,2完成,3失败',
+                               `rule_detail` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '规则检测结果摘要(JSON)',
                                `model_detect` tinyint DEFAULT '0' COMMENT '模型检测状态:0未检测,1检测中,2完成,3失败',
+                               `model_detail` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '模型检测结果摘要(JSON)',
                                PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='上传任务表';
 create table `access_log`
