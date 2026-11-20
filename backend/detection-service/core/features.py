@@ -39,10 +39,9 @@ def _entropy(counts: pd.Series) -> float:
     return float(-(p * np.log(p + 1e-12)).sum())
 
 
-def build_ip_features(df: pd.DataFrame) -> pd.DataFrame:
+def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    输入一行一条访问日志的 DataFrame，返回一行一个 IP 的特征表。
-    必需列：ip, access_time, url, status_code, method,
+    输入：ip, access_time, url, status_code, method,
             response_time, duration, src_bytes, dst_bytes
     返回列：ip + FEATURE_COLUMNS
     """

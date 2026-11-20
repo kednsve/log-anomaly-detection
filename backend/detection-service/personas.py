@@ -24,14 +24,14 @@ BENIGN_IP_COUNT = 200        # 正常用户 IP 数量
 ATTACK_IP_COUNT = 20         # 攻击者 IP 数量（含 C2）
 C2_IP = "18.219.211.138"     # 真实的 C2 控制端 IP
 
-# 正常用户 IP 段（国内 ISP，每段补两段随机数）
+# 正常用户 IP 段
 BENIGN_IP_PREFIXES = [
     "1.180.", "27.184.", "36.110.", "58.247.", "101.226.",
     "106.11.", "113.87.", "116.24.", "119.137.", "120.229.",
     "121.35.", "183.14.", "223.5.", "119.29.",
 ]
 
-# 攻击者 IP 段（每段补两段随机数）
+# 攻击者 IP 段
 ATTACK_IP_PREFIXES = [
     "45.12.", "103.45.", "185.22.", "194.26.", "212.83.",
     "91.219.", "5.188.", "89.248.", "141.98.", "193.32.",
@@ -83,7 +83,7 @@ class IpPersona:
 
 
 def gen_ip(prefix, rng):
-    """根据前缀补足到 4 段 IPv4，prefix 形如 '114.114.114.' 或 '45.12.'"""
+    """补足 4 段 IP"""
     need = 4 - prefix.count('.')  # 已有段数 = 点的个数
     return prefix + ".".join(str(rng.randint(2, 254)) for _ in range(need))
 
@@ -101,7 +101,7 @@ def generate_unique_ips(prefixes, count, rng):
 
 
 def pick_choice(rng, entries):
-    """从 [(值, 权重), ...] 中按权重取一个值。"""
+    """按权重值"""
     values = [entry[0] for entry in entries]
     weights = [entry[1] for entry in entries]
     return rng.choices(values, weights=weights, k=1)[0]

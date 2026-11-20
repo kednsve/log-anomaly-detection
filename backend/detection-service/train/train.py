@@ -22,13 +22,13 @@ from config import (
     N_ESTIMATORS,
     RANDOM_STATE,
 )
-from core.features import FEATURE_COLUMNS, build_ip_features
+from core.features import FEATURE_COLUMNS, build_features
 
 
 def load_features(path: Path) -> pd.DataFrame:
     """从磁盘读取一个csv，聚合特征"""
     df = pd.read_csv(path)
-    return build_ip_features(df)
+    return build_features(df)
 
 
 def make_model(contamination: float) -> IsolationForest:
